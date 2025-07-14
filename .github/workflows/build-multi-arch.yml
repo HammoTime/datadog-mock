@@ -61,17 +61,22 @@ jobs:
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:${{ steps.meta.outputs.version }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'aarch64' }}
+            ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:latest-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'aarch64' }}
 
       - name: Export digest
         run: |
           mkdir -p /tmp/digests
           digest="${{ steps.build.outputs.digest }}"
+          platform="${{ matrix.platform }}"
           touch "/tmp/digests/${digest#sha256:}"
+          echo "$digest" > "/tmp/digests/${platform//\//-}"
 
       - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digests
+          name: digests-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'aarch64' }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -86,8 +91,9 @@ jobs:
       - name: Download digests
         uses: actions/download-artifact@v3
         with:
-          name: digests
+          pattern: digests-*
           path: /tmp/digests
+          merge-multiple: true
 
       - name: Set lowercase image name
         id: image
