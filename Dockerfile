@@ -12,9 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM scratch
+# Build stage
+FROM golang:1.24-alpine AS builder
 
-MAINTAINER Jan Cajthaml <jan.cajthaml@gmail.com>
+# Set working directory
+WORKDIR /app
+
+# Copy repo contents
+COPY . .
+
+# Change to the Go module directory
+WORKDIR /app
+
+# Build steps
+RUN go mod verify
+RUN go mod tidy
+RUN go mod vendor
+RUN go build -o /app/datadog_mock ./src
+
+# Final stage
+FROM scratch
 
 ARG VERSION
 ARG SOURCE
@@ -23,8 +40,8 @@ LABEL version=$VERSION
 LABEL description="DataDog mock server"
 LABEL source=$SOURCE
 
-COPY pkg/datadog_mock /datadog_mock
+COPY --from=builder /app/datadog_mock /datadog_mock
 
 EXPOSE 8125/UDP
 
-ENTRYPOINT ["/datadog_mock"]
+ENTRYPOINT ["/app/datadog_mock"]
