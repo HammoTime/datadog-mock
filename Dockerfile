@@ -29,6 +29,7 @@ RUN go mod verify
 RUN go mod tidy
 RUN go mod vendor
 RUN go build -o /app/datadog_mock ./src
+RUN chmod +x /app/datadog_mock
 
 # Final stage
 FROM scratch
@@ -44,4 +45,4 @@ COPY --from=builder /app/datadog_mock /datadog_mock
 
 EXPOSE 8125/UDP
 
-ENTRYPOINT ["/app/datadog_mock"]
+ENTRYPOINT ["/datadog_mock"]
