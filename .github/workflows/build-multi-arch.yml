@@ -61,9 +61,6 @@ jobs:
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
-          tags: |
-            ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:${{ steps.meta.outputs.version }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'aarch64' }}
-            ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:latest-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'aarch64' }}
 
       - name: Export digest
         run: |
@@ -125,8 +122,29 @@ jobs:
       - name: Create manifest list and push
         working-directory: /tmp/digests
         run: |
+          # Create multi-arch manifest
           docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
             $(printf '${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@sha256:%s ' *)
+          
+          # Also create platform-specific tags
+          for digest_file in *; do
+            if [ -f "$digest_file" ]; then
+              digest=$(cat "$digest_file")
+              if [[ "$digest_file" == *"linux-amd64"* ]]; then
+                platform="amd64"
+              elif [[ "$digest_file" == *"linux-arm64"* ]]; then
+                platform="aarch64"
+              else
+                continue
+              fi
+              
+              # Tag platform-specific images
+              docker buildx imagetools create \
+                -t ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:${{ steps.meta.outputs.version }}-${platform} \
+                -t ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:latest-${platform} \
+                ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${digest}
+            fi
+          done
 
       - name: Inspect image
         run: |
